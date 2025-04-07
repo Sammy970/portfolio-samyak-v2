@@ -38,6 +38,18 @@ export default function Page() {
             </BlurFade>
           </div>
         </div>
+        {/* Download Resume */}
+        <div className="mx-auto mt-4 flex max-w-2xl items-center justify-between gap-4">
+          <BlurFade delay={BLUR_FADE_DELAY * 2}>
+            <Link
+              href="/SamyakJainResume.pdf"
+              target="_blank"
+              className="inline-flex items-center rounded-md border border-transparent bg-foreground px-4 py-2 text-sm font-medium text-background shadow-sm hover:bg-black/80 focus:outline-none dark:bg-white dark:text-background dark:hover:bg-white/80 dark:hover:text-background dark:focus:ring-offset-muted"
+            >
+              Download Resume
+            </Link>
+          </BlurFade>
+        </div>
       </section>
       <section id="about">
         <BlurFade delay={BLUR_FADE_DELAY * 3}>

@@ -7,6 +7,7 @@ import remarkGfm from "remark-gfm";
 import remarkParse from "remark-parse";
 import remarkRehype from "remark-rehype";
 import { unified } from "unified";
+import rehypeRaw from "rehype-raw";
 
 type Metadata = {
   title: string;
@@ -23,11 +24,12 @@ export async function markdownToHTML(markdown: string) {
   const p = await unified()
     .use(remarkParse)
     .use(remarkGfm)
-    .use(remarkRehype)
+    .use(remarkRehype, { allowDangerousHtml: true })
+    .use(rehypeRaw)
     .use(rehypePrettyCode, {
       // https://rehype-pretty.pages.dev/#usage
       theme: {
-        light: "min-light",
+        light: "github-dark",
         dark: "min-dark",
       },
       keepBackground: false,
@@ -61,7 +63,7 @@ async function getAllPosts(dir: string) {
         slug,
         source,
       };
-    }),
+    })
   );
 }
 

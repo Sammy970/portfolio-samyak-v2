@@ -1,0 +1,508 @@
+---
+title: "Decoding BookMyShow: Understanding and Implementing Server Driven UI"
+date: "2025-04-13"
+publishedAt: "2025-04-13"
+author: "Sammy970"
+tags: ["Server Driven UI", "React", "TypeScript", "UI Architecture"]
+---
+
+<div style="display:flex; align-items:center; margin-bottom:1em;">
+  <img
+    src="https://github.com/Sammy970/decode-bms/blob/main/public/BookMyShow_ICON.png?raw=true"
+    alt="BookMyShowIcon"
+    style="display:inline; height:2em; vertical-align:middle; margin-right:0.5em;"
+  />
+  <h2
+    style={{
+      fontSize: "3em",
+    }}
+  >
+    Decoding BookMyShow: Building a Server-Driven UI Framework
+  </h2>
+</div>
+
+## Introduction
+
+Have you ever wondered how complex applications like BookMyShow maintain a consistent user experience across platforms while enabling rapid updates without requiring app releases? The answer lies in **Server-Driven UI** (SDUI), a powerful architecture that's revolutionizing how we build modern applications.
+
+In this blog post, I'll walk you through my journey of reverse-engineering BookMyShow's API to understand their SDUI implementation. The result is [Decode BookMyShow](https://github.com/Sammy970/decode-bms), an open-source project that showcases how to build a flexible SDUI framework.
+
+## What is Server-Driven UI?
+
+Server-Driven UI is an architectural pattern where the UI layout, components, and their properties are defined by the server rather than being hardcoded in the client application. In this approach:
+
+1. The server sends a **UI description** (typically JSON) that defines what components to render and how they should appear
+2. The client interprets this description and dynamically renders the appropriate UI components
+3. The server can change the UI without requiring client-side updates
+
+This differs from traditional approaches where the client application contains hardcoded UI layouts and only requests data to populate them.
+
+## Why Use Server-Driven UI?
+
+Server-Driven UI offers several compelling advantages:
+
+### 1. Consistent Cross-Platform Experience
+
+With SDUI, the same server can deliver optimized UI components for different platforms (web, iOS, Android), ensuring consistent experiences while respecting platform-specific design guidelines.
+
+### 2. Rapid Iterations Without App Updates
+
+Product teams can experiment with UI changes, launch new features, or fix UI issues by updating the server responses without waiting for app store approvals or client updates.
+
+### 3. Dynamic Content Presentation
+
+SDUI makes it easy to display personalized content layouts based on user preferences, A/B testing, location, or other contextual factors.
+
+### 4. Reduced Client Complexity
+
+The client becomes a "UI renderer" that follows server instructions, simplifying client-side code and reducing the need for frequent client updates.
+
+### 5. Better Resource Management
+
+SDUI allows for careful control over performance-critical aspects like image loading, component reuse, and layout optimizations.
+
+## Results:
+
+## BookMyShow Web and Mobile vs My Recreation (Server-Driven UI)
+
+### 1. Web View
+
+**Original**
+
+![BookMyShow Web](https://github.com/Sammy970/decode-bms/blob/main/public/bms_web.png?raw=true)
+
+**Recreation**
+
+![Decoded BMS Web](https://github.com/Sammy970/decode-bms/blob/main/public/decode_bms_web.png?raw=true)
+
+---
+
+### 2. Mobile View – Page 1
+
+**Original**
+
+![BookMyShow Mobile 1](https://github.com/Sammy970/decode-bms/blob/main/public/bms_mob_1.png?raw=true)
+
+**Recreation**
+
+![Decoded BMS Mobile 1](https://github.com/Sammy970/decode-bms/blob/main/public/decode_bms_mob_1.png?raw=true)
+
+---
+
+### 3. Mobile View – Page 2
+
+**Original**
+
+![BookMyShow Mobile 2](https://github.com/Sammy970/decode-bms/blob/main/public/bms_mob_2.png?raw=true)
+
+**Recreation**
+
+![Decoded BMS Mobile 2](https://github.com/Sammy970/decode-bms/blob/main/public/decode_bms_mob_2.png?raw=true)
+
+## How I Built a Server-Driven UI Framework: Decode BookMyShow
+
+After analyzing BookMyShow's API responses, I identified that they use a component-based SDUI system with various widget types. Let me walk through how I implemented each component type in my framework.
+
+### Core Architecture
+
+My approach was to build a component system where each server-defined "type" maps to a React component that knows how to render itself. The central idea is:
+
+1. Receive widget definitions from the server
+2. Match each widget with its corresponding component based on "type"
+3. Apply styling based on referenced "styleId" values
+4. Recursively render nested components
+
+### Widget Types Implementation
+
+#### 1. Cards
+
+The Card component is one of the most versatile elements in the system, supporting both vertical and horizontal orientations through a single component implementation. The orientation is determined by the `type` property in the API response:
+
+```json
+// Vertical card example
+{
+  "id": "EG00418338",
+  "type": "vertical",
+  "styleId": "5207475275481226612",
+  "ctaUrl": "https://in.bookmyshow.com/bengaluru/movies/vidyapati/ET00420153",
+  "text": [
+    {
+      "maxLines": 2,
+      "styleId": "7785389241114011138",
+      "components": [
+        {
+          "type": "text",
+          "text": "Vidyapati"
+        }
+      ]
+    }
+  ],
+  "image": {
+    "url": "https://assets-in.bmscdn.com/discovery-catalog/events/tr:w-400,h-600,bg-CCCCCC/et00420153-uupnwlhcxm-portrait.jpg",
+    "altText": "Vidyapati"
+  },
+  "tags": [
+    {
+      "styleId": "2759634946264020090",
+      "label": {
+        "maxLines": 1,
+        "styleId": "-1591248389725590333",
+        "components": [
+          {
+            "type": "text",
+            "text": "PROMOTED"
+          }
+        ]
+      }
+    }
+  ]
+}
+```
+
+```json
+// Horizontal card example
+{
+  "id": "EG00420522",
+  "type": "horizontal",
+  "styleId": "6034184666535124515",
+  "ctaUrl": "https://in.bookmyshow.com/bengaluru/movies/the-brutalist/ET00422382",
+  "text": [
+    {
+      "maxLines": 2,
+      "styleId": "-6553488546853243560",
+      "components": [
+        {
+          "type": "text",
+          "text": "The Brutalist"
+        }
+      ]
+    },
+    {
+      "maxLines": 2,
+      "styleId": "8335147091351660677",
+      "components": [
+        {
+          "type": "text",
+          "text": "3h 34m • Drama, Historical • A"
+        }
+      ]
+    }
+  ],
+  "image": {
+    "url": "https://assets-in.bmscdn.com/discovery-catalog/events/tr:w-400,h-600,bg-CCCCCC:l-image,i-discovery-catalog@@icons@@bms_premiere_v1.png,t-false,lfo-bottom_left,l-end/et00422382-tlrwuczldt-portrait.jpg",
+    "altText": "The Brutalist"
+  },
+  "buttons": [
+    {
+      "styleId": "4132622510035248234",
+      "label": {
+        "maxLines": 1,
+        "styleId": "-3341313454232951668",
+        "components": [
+          {
+            "type": "text",
+            "text": "Buy or Rent"
+          }
+        ]
+      },
+      "ctaUrl": "https://in.bookmyshow.com/bengaluru/movies/the-brutalist/ET00422382"
+    }
+  ]
+}
+```
+
+My Card component implementation:
+
+1. Uses a single component that handles both vertical and horizontal types
+2. Dynamically applies different layouts and styling based on the type
+3. Renders common elements like images, text, tags, and buttons
+4. Maintains proper aspect ratios and responsive behavior
+5. Handles navigation through the provided ctaUrl
+
+This approach simplifies the component hierarchy while maintaining flexibility. The component internally determines the appropriate layout and styling based on the type field, which allows for:
+
+- Code reuse between the two card variants
+- Consistent styling and behavior across card types
+- Simplified maintenance with a single component to update
+- Efficient rendering with shared logic
+
+The same Card component can appear in various container widgets like Flexbox, HorizontalScroll, and Carousel, making it one of the most frequently used components in the system.
+
+### 2. Flexbox
+
+Flexbox is a fundamental layout widget that arranges items in rows or columns with specified spacing. Here's an example response:
+
+```json
+{
+  "id": "TVOD_SHOWCASE_BANNER",
+  "type": "flexbox",
+  "isSticky": false,
+  "styleId": "5330088296335279945",
+  "itemsPerRow": 1,
+  "horizontalSpacing": 8,
+  "verticalSpacing": 8,
+  "matchMaxCardHeight": true,
+  "cards": [
+    {
+      "id": "520cc685-544b-403e-a250-847670670f25",
+      "type": "vertical",
+      "styleId": "-4278837926783854781",
+      "ctaUrl": "https://in.bookmyshow.com/explore/c/stream",
+      "image": {
+        "url": "https://assets-in.bmscdn.com/discovery-catalog/collections/tr:w-1440,h-480:w-600/stream-showcase-banner-exp-collection-202406050332.gif",
+        "altText": "Stream"
+      }
+    }
+  ]
+}
+```
+
+I implemented a generic Flexbox component that:
+
+1. Creates a responsive grid layout using CSS flexbox
+2. Applies spacing based on server-provided values
+3. Maintains consistent card heights when specified
+4. Renders child components based on their individual types
+
+The component processes the provided styling information from the referenced styleId to maintain visual consistency with the BookMyShow app.
+
+### 3. Horizontal Scroll
+
+This widget creates a horizontally scrollable row of content, often used for movie recommendations, categories, or featured content:
+
+```json
+{
+  "id": "TOP_MOVIES_MOBILE",
+  "type": "horizontal-scroll",
+  "isSticky": false,
+  "styleId": "5340090739233308580",
+  "visibleItems": 2.75,
+  "itemsPerRow": 10,
+  "horizontalSpacing": 8,
+  "verticalSpacing": 0,
+  "title": {
+    "maxLines": 1,
+    "styleId": "7987316217275958678",
+    "components": [
+      {
+        "type": "text",
+        "text": "Recommended Movies"
+      }
+    ]
+  },
+  "matchMaxCardHeight": true,
+  "cta": {
+    "label": {
+      "components": [
+        {
+          "type": "text",
+          "text": "See All ›"
+        }
+      ]
+    },
+    "url": "https://in.bookmyshow.com/explore/movies-bengaluru"
+  },
+  "cards": [
+    /* movie cards here */
+  ]
+}
+```
+
+My `HorizontalScroll` component includes:
+
+1. A container with overflow handling for horizontal scrolling
+2. Customizable item widths based on the visibleItems property
+3. Optional title and "See All" CTA rendering
+4. Proper spacing and alignment of cards
+5. Touch-friendly scrolling behavior with momentum
+
+This component is particularly useful for browsing through collections of similarly formatted content items.
+
+### 4. Carousel
+
+The carousel widget presents a full-width slideshow of content, typically used for featured content or promotions:
+
+```json
+{
+  "id": "TVOD_SHOWCASE",
+  "type": "carousel",
+  "isSticky": false,
+  "styleId": "8429547327424683329",
+  "horizontalSpacing": 16,
+  "title": {
+    "maxLines": 1,
+    "styleId": "-4509315044828611300",
+    "components": [
+      {
+        "type": "text",
+        "text": "Watch Top Movies Online"
+      }
+    ]
+  },
+  "subtitle": {
+    "maxLines": 1,
+    "styleId": "-5103615806931264414",
+    "components": [
+      {
+        "type": "text",
+        "text": "Buy or Rent movies on BMS STREAM"
+      }
+    ]
+  },
+  "matchMaxCardHeight": false,
+  "cards": [
+    /* movie cards here */
+  ],
+  "snapping": false,
+  "fillViewport": false,
+  "immersive": false,
+  "minPeek": 0,
+  "autoScrollDuration": 3000,
+  "showIndicators": true,
+  "sliderDuration": 3000
+}
+```
+
+My `Carousel` component features:
+
+1. Auto-advancing slides with configurable timing
+2. Interactive navigation indicators
+3. Optional title and subtitle sections
+4. Support for different card types within the carousel
+5. Touch-friendly swipe gestures
+
+The flexibility of this component allows it to showcase anything from promotional banners to curated content collections.
+
+### 5. Advertisement
+
+The advertisement widget is a specialized component for handling dynamic ad content:
+
+```json
+{
+  "id": "AD_HOME_CAROUSEL_MWEB",
+  "adtechId": "AD_HOME_CAROUSEL",
+  "type": "advertisement",
+  "isSticky": false,
+  "styleId": "-4248498540950589586",
+  "matchMaxCardHeight": false,
+  "cards": [
+    {
+      "adtype": "DISPLAY",
+      "reqid": "7577a3b7-755c-42db-95f2-7b92c85627a5",
+      "adunitcode": "homepage_carousel3_mweb",
+      "size": "SIZE_FLUID",
+      "assets": {
+        "adm": "<!-- HTML Ad Content -->",
+        "duration": 3000,
+        "iurl": "https://adtech-events.bookmyshow.com/adevent/v2/imp?reqid=7577a3b7-755c-42db-95f2-7b92c85627a5",
+        "position": 3
+      }
+    }
+  ]
+}
+```
+
+This component required special handling:
+
+1. The initial API response includes the advertisement container but not the actual ad content
+2. A separate API call fetches the ad content
+3. I merge both responses to create a complete advertisement widget
+4. For multiple ads, I render them as a carousel
+5. For single ads, I render them directly
+
+### 6. Mobile Bottom Navigation
+
+This specialized navigation component defines the app's main navigation structure:
+
+```json
+{
+  "defaultSelected": "home",
+  "bgColor": "#FFFFFF",
+  "tabs": [
+    {
+      "id": "home",
+      "icon": {
+        "defaultUrl": "https://assets-in.bmscdn.com/discovery-catalog/collections/home-default-collection-202302270255.png",
+        "selectedUrl": "https://assets-in.bmscdn.com/discovery-catalog/collections/home-selected-collection-202302270255.png"
+      },
+      "label": {
+        "text": "Home",
+        "color": "#666666"
+      },
+      "cta": {
+        "type": "embed",
+        "url": "https://in.bookmyshow.com/explore/home/"
+      },
+      "header": {
+        /* header configuration */
+      }
+    }
+    /* other tabs */
+  ]
+}
+```
+
+My `BottomNavigation` component:
+
+1. Renders a fixed-position navigation bar at the bottom of the screen on mobile
+2. Tracks the currently selected tab with appropriate visual indicators
+3. Applies the appropriate header configuration for each tab
+
+This component serves as the primary navigation structure on mobile, demonstrating how even core interface elements can be server-driven.
+
+## Style Management
+
+A key aspect of the SDUI system is the style handling. BookMyShow's API includes style definitions referenced by styleId:
+
+```json
+{
+  "id": "-130514066956528765",
+  "aspectRatio": 12,
+  "padding": "40,0,40,0",
+  "type": "widget",
+  "shimmer": false,
+  "imageVerticalAlignment": "bottom"
+},
+{
+  "id": "1013830832253216626",
+  "padding": "0,0,32,0",
+  "type": "widget",
+  "headerContainer": {
+    "padding": "0,0,0,0",
+    "margin": "0,0,8,0"
+  },
+  "cardsContainer": {
+    "padding": "0,0,0,0"
+  }
+}
+```
+
+My approach to style handling:
+
+1. When rendering components, look up the appropriate style by styleId
+2. Transform server-style values into CSS-compatible properties
+3. Apply styles using CSS-in-JS or styled-components
+4. Implement fallback styling for unknown styleId values
+
+This approach allows for consistent application of styles while maintaining the flexibility of server-driven configurations.
+
+## Challenges and Learnings
+
+Building this SDUI framework presented several interesting challenges:
+
+1. Component Hierarchy and Nesting
+   Handling deeply nested components while ensuring proper props propagation was complex. I implemented a recursive rendering system that could handle arbitrary nesting levels.
+
+2. Style Interpretation
+   Converting the server's style definitions into CSS required careful parsing and transformation. Special handling was needed for different units, property names, and platform-specific style values.
+
+3. Error Handling and Fallbacks
+   When server responses contain unexpected or malformed data, graceful degradation is essential. I built in fallback rendering options and error boundaries to prevent complete UI failures.
+
+# Conclusion
+
+Server-Driven UI represents a powerful pattern for building flexible, maintainable applications. By studying and implementing BookMyShow's approach, I've created a framework that demonstrates the benefits of this architecture.
+
+The [Decode BookMyShow project](https://github.com/Sammy970/decode-bms) is now available on GitHub as an open-source reference implementation. Whether you're building a new application or considering transitioning to SDUI, I hope this project provides valuable insights into how large-scale applications implement this pattern effectively.
+
+Feel free to explore the code, contribute improvements, or adapt the concepts for your own projects!

@@ -4,21 +4,12 @@ date: "2025-04-13"
 publishedAt: "2025-04-13"
 author: "Sammy970"
 tags: ["Server Driven UI", "React", "TypeScript", "UI Architecture"]
+icon: https://github.com/Sammy970/decode-bms/blob/main/public/BookMyShow_ICON.png?raw=true,
 ---
 
-<div style="display:flex; align-items:center; margin-bottom:1em;">
-  <img
-    src="https://github.com/Sammy970/decode-bms/blob/main/public/BookMyShow_ICON.png?raw=true"
-    alt="BookMyShowIcon"
-    style="display:inline; height:2em; vertical-align:middle; margin-right:0.5em;"
-  />
-  <h2
-    style={{
-      fontSize: "3em",
-    }}
-  >
-    Decoding BookMyShow: Building a Server-Driven UI Framework
-  </h2>
+<div style="text-align: left; margin-bottom: 2em; display: flex; align-items: center;">
+  <img src="https://jainsamyak.vercel.app/me.png" alt="Samyak Jain" style="height: 40px; width: 40px; border-radius: 50%; margin-bottom: 10px; margin-right: 10px;" />
+  <h3>Samyak Jain</h3>
 </div>
 
 ## Introduction
@@ -27,7 +18,75 @@ Have you ever wondered how complex applications like BookMyShow maintain a consi
 
 In this blog post, I'll walk you through my journey of reverse-engineering BookMyShow's API to understand their SDUI implementation. The result is [Decode BookMyShow](https://github.com/Sammy970/decode-bms), an open-source project that showcases how to build a flexible SDUI framework.
 
-## What is Server-Driven UI?
+<div style="margin-top: 2em;"></div>
+
+<details>
+  <summary className="text-xl font-semibold cursor-pointer">
+    Table of Contents
+  </summary>
+  <ul className="list-disc">
+    <li>
+      <a href="#what-is-server-driven-ui">What is Server-Driven UI?</a>
+    </li>
+    <li>
+      <a href="#why-use-server-driven-ui">Why Use Server-Driven UI?</a>
+    </li>
+    <li>
+      <a href="#results">Results</a>
+    </li>
+    <li>
+      <a href="#bookmyshow-web-and-mobile-vs-my-recreation-server-driven-ui">
+        BookMyShow vs My Recreation
+      </a>
+    </li>
+    <li>
+      <a href="#how-i-built-a-server-driven-ui-framework-decode-bookmyshow">
+        How I Built a Server-Driven UI Framework
+      </a>
+      <ul>
+        <li>
+          <a href="#core-architecture">Core Architecture</a>
+        </li>
+        <li>
+          <a href="#widget-types-implementation">Widget Types Implementation</a>
+          <ul>
+            <li>
+              <a href="#1-cards">1. Cards</a>
+            </li>
+            <li>
+              <a href="#2-flexbox">2. Flexbox</a>
+            </li>
+            <li>
+              <a href="#3-horizontal-scroll">3. Horizontal Scroll</a>
+            </li>
+            <li>
+              <a href="#4-carousel">4. Carousel</a>
+            </li>
+            <li>
+              <a href="#5-advertisement">5. Advertisement</a>
+            </li>
+            <li>
+              <a href="#6-mobile-bottom-navigation">
+                6. Mobile Bottom Navigation
+              </a>
+            </li>
+          </ul>
+        </li>
+        <li>
+          <a href="#style-management">Style Management</a>
+        </li>
+      </ul>
+    </li>
+    <li>
+      <a href="#challenges-and-learnings">Challenges and Learnings</a>
+    </li>
+    <li>
+      <a href="#conclusion">Conclusion</a>
+    </li>
+  </ul>
+</details>
+
+<h2 id="what-is-server-driven-ui">What is Server-Driven UI?</h2>
 
 Server-Driven UI is an architectural pattern where the UI layout, components, and their properties are defined by the server rather than being hardcoded in the client application. In this approach:
 
@@ -37,31 +96,35 @@ Server-Driven UI is an architectural pattern where the UI layout, components, an
 
 This differs from traditional approaches where the client application contains hardcoded UI layouts and only requests data to populate them.
 
-## Why Use Server-Driven UI?
+<h2 id="why-use-server-driven-ui">Why Use Server-Driven UI?</h2>
 
 Server-Driven UI offers several compelling advantages:
 
-### 1. Consistent Cross-Platform Experience
+<h3 id="1-consistent-cross-platform-experience">
+  1. Consistent Cross-Platform Experience
+</h3>
 
 With SDUI, the same server can deliver optimized UI components for different platforms (web, iOS, Android), ensuring consistent experiences while respecting platform-specific design guidelines.
 
-### 2. Rapid Iterations Without App Updates
+<h3 id="2-rapid-iterations-without-app-updates">
+  2. Rapid Iterations Without App Updates
+</h3>
 
 Product teams can experiment with UI changes, launch new features, or fix UI issues by updating the server responses without waiting for app store approvals or client updates.
 
-### 3. Dynamic Content Presentation
+<h3 id="3-dynamic-content-presentation">3. Dynamic Content Presentation</h3>
 
 SDUI makes it easy to display personalized content layouts based on user preferences, A/B testing, location, or other contextual factors.
 
-### 4. Reduced Client Complexity
+<h3 id="4-reduced-client-complexity">4. Reduced Client Complexity</h3>
 
 The client becomes a "UI renderer" that follows server instructions, simplifying client-side code and reducing the need for frequent client updates.
 
-### 5. Better Resource Management
+<h3 id="5-better-resource-management">5. Better Resource Management</h3>
 
 SDUI allows for careful control over performance-critical aspects like image loading, component reuse, and layout optimizations.
 
-## Results:
+<h2 id="results">Results</h2>
 
 ## BookMyShow Web and Mobile vs My Recreation (Server-Driven UI)
 
@@ -99,11 +162,13 @@ SDUI allows for careful control over performance-critical aspects like image loa
 
 ![Decoded BMS Mobile 2](https://github.com/Sammy970/decode-bms/blob/main/public/decode_bms_mob_2.png?raw=true)
 
-## How I Built a Server-Driven UI Framework: Decode BookMyShow
+<h2 id="how-i-built-a-server-driven-ui-framework-decode-bookmyshow">
+  How I Built a Server-Driven UI Framework
+</h2>
 
 After analyzing BookMyShow's API responses, I identified that they use a component-based SDUI system with various widget types. Let me walk through how I implemented each component type in my framework.
 
-### Core Architecture
+<h3 id="core-architecture">Core Architecture</h3>
 
 My approach was to build a component system where each server-defined "type" maps to a React component that knows how to render itself. The central idea is:
 
@@ -112,9 +177,9 @@ My approach was to build a component system where each server-defined "type" map
 3. Apply styling based on referenced "styleId" values
 4. Recursively render nested components
 
-### Widget Types Implementation
+<h3 id="widget-types-implementation">Widget Types Implementation</h3>
 
-#### 1. Cards
+<h3 id="1-cards">1. Card</h3>
 
 The Card component is one of the most versatile elements in the system, supporting both vertical and horizontal orientations through a single component implementation. The orientation is determined by the `type` property in the API response:
 
@@ -228,7 +293,7 @@ This approach simplifies the component hierarchy while maintaining flexibility. 
 
 The same Card component can appear in various container widgets like Flexbox, HorizontalScroll, and Carousel, making it one of the most frequently used components in the system.
 
-### 2. Flexbox
+<h3 id="2-flexbox">2. Flexbox</h3>
 
 Flexbox is a fundamental layout widget that arranges items in rows or columns with specified spacing. Here's an example response:
 
@@ -266,7 +331,7 @@ I implemented a generic Flexbox component that:
 
 The component processes the provided styling information from the referenced styleId to maintain visual consistency with the BookMyShow app.
 
-### 3. Horizontal Scroll
+<h3 id="3-horizontal-scroll">3. Horizontal Scroll</h3>
 
 This widget creates a horizontally scrollable row of content, often used for movie recommendations, categories, or featured content:
 
@@ -318,7 +383,7 @@ My `HorizontalScroll` component includes:
 
 This component is particularly useful for browsing through collections of similarly formatted content items.
 
-### 4. Carousel
+<h3 id="4-carousel">4. Carousel</h3>
 
 The carousel widget presents a full-width slideshow of content, typically used for featured content or promotions:
 
@@ -373,7 +438,7 @@ My `Carousel` component features:
 
 The flexibility of this component allows it to showcase anything from promotional banners to curated content collections.
 
-### 5. Advertisement
+<h3 id="5-advertisement">5. Advertisement</h3>
 
 The advertisement widget is a specialized component for handling dynamic ad content:
 
@@ -410,7 +475,7 @@ This component required special handling:
 4. For multiple ads, I render them as a carousel
 5. For single ads, I render them directly
 
-### 6. Mobile Bottom Navigation
+<h3 id="6-mobile-bottom-navigation">6. Mobile Bottom Navigation</h3>
 
 This specialized navigation component defines the app's main navigation structure:
 
@@ -450,7 +515,7 @@ My `BottomNavigation` component:
 
 This component serves as the primary navigation structure on mobile, demonstrating how even core interface elements can be server-driven.
 
-## Style Management
+<h2 id="style-management">Style Management</h2>
 
 A key aspect of the SDUI system is the style handling. BookMyShow's API includes style definitions referenced by styleId:
 
@@ -486,20 +551,23 @@ My approach to style handling:
 
 This approach allows for consistent application of styles while maintaining the flexibility of server-driven configurations.
 
-## Challenges and Learnings
+<h2 id="challenges-and-learnings">Challenges and Learnings</h2>
 
 Building this SDUI framework presented several interesting challenges:
 
-1. Component Hierarchy and Nesting
-   Handling deeply nested components while ensuring proper props propagation was complex. I implemented a recursive rendering system that could handle arbitrary nesting levels.
+<h3 id="component-hierarchy-and-nesting">1. Component Hierarchy and Nesting</h3>
 
-2. Style Interpretation
-   Converting the server's style definitions into CSS required careful parsing and transformation. Special handling was needed for different units, property names, and platform-specific style values.
+Handling deeply nested components while ensuring proper props propagation was complex. I implemented a recursive rendering system that could handle arbitrary nesting levels.
 
-3. Error Handling and Fallbacks
-   When server responses contain unexpected or malformed data, graceful degradation is essential. I built in fallback rendering options and error boundaries to prevent complete UI failures.
+<h3 id="style-interpretation">2. Style Interpretation</h3>
 
-# Conclusion
+Converting the server's style definitions into CSS required careful parsing and transformation. Special handling was needed for different units, property names, and platform-specific style values.
+
+<h3 id="error-handling-and-fallbacks">3. Error Handling and Fallbacks</h3>
+
+When server responses contain unexpected or malformed data, graceful degradation is essential. I built in fallback rendering options and error boundaries to prevent complete UI failures.
+
+<h2 id="conclusion">Conclusion</h2>
 
 Server-Driven UI represents a powerful pattern for building flexible, maintainable applications. By studying and implementing BookMyShow's approach, I've created a framework that demonstrates the benefits of this architecture.
 

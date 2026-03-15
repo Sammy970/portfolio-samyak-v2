@@ -5,15 +5,50 @@ import { ProjectCard } from "@/components/project-card";
 import { ResumeCard } from "@/components/resume-card";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
-import { DATA } from "@/data/resume";
+import { Icons } from "@/components/icons";
+import { client } from "@/sanity/lib/client";
+import {
+  profileQuery,
+  workQuery,
+  educationQuery,
+  projectsQuery,
+  certificationsQuery,
+  hackathonsQuery,
+} from "@/sanity/lib/queries";
 import Link from "next/link";
 import Markdown from "react-markdown";
 
 const BLUR_FADE_DELAY = 0.04;
 
-export default function Page() {
+export const revalidate = 60;
+
+export default async function Page() {
+  const [profile, work, education, projects, certifications, hackathons] =
+    await Promise.all([
+      client.fetch(profileQuery),
+      client.fetch(workQuery),
+      client.fetch(educationQuery),
+      client.fetch(projectsQuery),
+      client.fetch(certificationsQuery),
+      client.fetch(hackathonsQuery),
+    ]);
+
+  if (!profile) {
+    return (
+      <main className="flex flex-col min-h-[100dvh] items-center justify-center">
+        <p className="text-muted-foreground">
+          No profile found. Please add your profile in the{" "}
+          <Link href="/studio" className="text-blue-500 underline">
+            Sanity Studio
+          </Link>
+          .
+        </p>
+      </main>
+    );
+  }
+
   return (
-    <main className="flex flex-col min-h-[100dvh] space-y-10">
+    <main className="flex flex-col min-h-[100dvh] space-y-10 max-w-2xl mx-auto py-12 sm:py-24 px-6">
       <section id="hero">
         <div className="mx-auto w-full max-w-2xl space-y-8">
           <div className="gap-2 flex justify-between">
@@ -22,18 +57,18 @@ export default function Page() {
                 delay={BLUR_FADE_DELAY}
                 className="text-3xl font-bold tracking-tighter sm:text-5xl xl:text-6xl/none"
                 yOffset={8}
-                text={`Hi, I'm ${DATA.name.split(" ")[0]} 👋`}
+                text={`Hi, I'm ${profile.name.split(" ")[0]} 👋`}
               />
               <BlurFadeText
                 className="max-w-[600px] md:text-xl"
                 delay={BLUR_FADE_DELAY}
-                text={DATA.description}
+                text={profile.description}
               />
             </div>
             <BlurFade delay={BLUR_FADE_DELAY}>
               <Avatar className="size-28 border">
-                <AvatarImage alt={DATA.name} src={DATA.avatarUrl} />
-                <AvatarFallback>{DATA.initials}</AvatarFallback>
+                <AvatarImage alt={profile.name} src={profile.avatarUrl} />
+                <AvatarFallback>{profile.initials}</AvatarFallback>
               </Avatar>
             </BlurFade>
           </div>
@@ -57,7 +92,7 @@ export default function Page() {
         </BlurFade>
         <BlurFade delay={BLUR_FADE_DELAY * 4}>
           <Markdown className="prose max-w-full text-pretty font-sans text-sm text-muted-foreground dark:prose-invert">
-            {DATA.summary}
+            {profile.summary}
           </Markdown>
         </BlurFade>
       </section>
@@ -66,21 +101,17 @@ export default function Page() {
           <BlurFade delay={BLUR_FADE_DELAY * 5}>
             <h2 className="text-xl font-bold">Work Experience</h2>
           </BlurFade>
-          {DATA.work.map((work, id) => (
-            <BlurFade
-              key={work.company}
-              delay={BLUR_FADE_DELAY * 6 + id * 0.05}
-            >
+          {work.map((job: any, id: number) => (
+            <BlurFade key={job.company + job.title} delay={BLUR_FADE_DELAY * 6 + id * 0.05}>
               <ResumeCard
-                key={work.company}
-                logoUrl={work.logoUrl}
-                altText={work.company}
-                title={work.company}
-                subtitle={work.title}
-                href={work.href}
-                badges={work.badges}
-                period={`${work.start} - ${work.end ?? "Present"}`}
-                description={work.description}
+                logoUrl={job.logoUrl}
+                altText={job.company}
+                title={job.company}
+                subtitle={job.title}
+                href={job.href}
+                badges={job.badges ?? []}
+                period={`${job.start} - ${job.end ?? "Present"}`}
+                description={job.description}
               />
             </BlurFade>
           ))}
@@ -91,19 +122,15 @@ export default function Page() {
           <BlurFade delay={BLUR_FADE_DELAY * 7}>
             <h2 className="text-xl font-bold">Education</h2>
           </BlurFade>
-          {DATA.education.map((education, id) => (
-            <BlurFade
-              key={education.school}
-              delay={BLUR_FADE_DELAY * 8 + id * 0.05}
-            >
+          {education.map((edu: any, id: number) => (
+            <BlurFade key={edu.school} delay={BLUR_FADE_DELAY * 8 + id * 0.05}>
               <ResumeCard
-                key={education.school}
-                href={education.href}
-                logoUrl={education.logoUrl}
-                altText={education.school}
-                title={education.school}
-                subtitle={education.degree}
-                period={`${education.start} - ${education.end}`}
+                href={edu.href}
+                logoUrl={edu.logoUrl}
+                altText={edu.school}
+                title={edu.school}
+                subtitle={edu.degree}
+                period={`${edu.start} - ${edu.end}`}
               />
             </BlurFade>
           ))}
@@ -115,9 +142,9 @@ export default function Page() {
             <h2 className="text-xl font-bold">Skills</h2>
           </BlurFade>
           <div className="flex flex-wrap gap-1">
-            {DATA.skills.map((skill, id) => (
+            {(profile.skills ?? []).map((skill: string, id: number) => (
               <BlurFade key={skill} delay={BLUR_FADE_DELAY * 10 + id * 0.05}>
-                <Badge key={skill}>{skill}</Badge>
+                <Badge>{skill}</Badge>
               </BlurFade>
             ))}
           </div>
@@ -143,21 +170,25 @@ export default function Page() {
             </div>
           </BlurFade>
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 max-w-[800px] mx-auto">
-            {DATA.projects.map((project, id) => (
+            {projects.map((project: any, id: number) => (
               <BlurFade
                 key={project.title}
                 delay={BLUR_FADE_DELAY * 12 + id * 0.05}
               >
                 <ProjectCard
                   href={project.href}
-                  key={project.title}
                   title={project.title}
                   description={project.description}
                   dates={project.dates}
-                  tags={project.technologies}
+                  tags={project.technologies ?? []}
                   image={project.image}
                   video={project.video}
-                  links={project.links}
+                  links={(project.links ?? []).map((link: any) => ({
+                    ...link,
+                    icon: link.type === "Source"
+                      ? <Icons.github className="size-3" />
+                      : <Icons.globe className="size-3" />,
+                  }))}
                 />
               </BlurFade>
             ))}
@@ -169,19 +200,18 @@ export default function Page() {
           <BlurFade delay={BLUR_FADE_DELAY * 13}>
             <h2 className="text-xl font-bold">Certifications</h2>
           </BlurFade>
-          {DATA.certifications.map((certification, id) => (
+          {certifications.map((cert: any, id: number) => (
             <BlurFade
-              key={certification.title}
+              key={cert.title}
               delay={BLUR_FADE_DELAY * 14 + id * 0.05}
             >
               <ResumeCard
-                key={certification.title}
-                logoUrl={certification.logoUrl}
-                altText={certification.title}
-                title={certification.title}
-                subtitle={certification.provider}
-                href={certification.href}
-                period={`${certification.date}`}
+                logoUrl={cert.logoUrl}
+                altText={cert.title}
+                title={cert.title}
+                subtitle={cert.provider}
+                href={cert.href}
+                period={cert.date}
               />
             </BlurFade>
           ))}
@@ -200,8 +230,9 @@ export default function Page() {
                 </h2>
                 <p className="text-muted-foreground md:text-xl/relaxed lg:text-base/relaxed xl:text-xl/relaxed">
                   During my time in university, I attended{" "}
-                  {DATA.hackathons.length} hackathon. It was eye-opening to see
-                  the endless possibilities brought to life by a group of
+                  {hackathons.length} hackathon
+                  {hackathons.length !== 1 ? "s" : ""}. It was eye-opening to
+                  see the endless possibilities brought to life by a group of
                   motivated and passionate individuals.
                 </p>
               </div>
@@ -209,18 +240,21 @@ export default function Page() {
           </BlurFade>
           <BlurFade delay={BLUR_FADE_DELAY * 14}>
             <ul className="mb-4 ml-4 divide-y divide-dashed border-l">
-              {DATA.hackathons.map((project, id) => (
+              {hackathons.map((hackathon: any, id: number) => (
                 <BlurFade
-                  key={project.title + project.dates}
+                  key={hackathon.title + hackathon.dates}
                   delay={BLUR_FADE_DELAY * 15 + id * 0.05}
                 >
                   <HackathonCard
-                    title={project.title}
-                    description={project.description}
-                    location={project.location}
-                    dates={project.dates}
-                    image={project.image}
-                    links={project.links}
+                    title={hackathon.title}
+                    description={hackathon.description}
+                    location={hackathon.location}
+                    dates={hackathon.dates}
+                    image={hackathon.image}
+                    links={(hackathon.links ?? []).map((link: any) => ({
+                      ...link,
+                      icon: <Icons.globe className="size-3" />,
+                    }))}
                   />
                 </BlurFade>
               ))}
@@ -241,14 +275,14 @@ export default function Page() {
               <p className="mx-auto max-w-[600px] text-muted-foreground md:text-xl/relaxed lg:text-base/relaxed xl:text-xl/relaxed">
                 Want to chat? Just shoot me a dm{" "}
                 <Link
-                  href={`mailto:${DATA.contact.email}`}
+                  href={`mailto:${profile.contact?.email}`}
                   className="text-blue-500 hover:underline"
                 >
                   via email
                 </Link>{" "}
                 or on my{" "}
                 <Link
-                  href={DATA.contact.social.LinkedIn.url}
+                  href={profile.contact?.linkedin ?? "#"}
                   className="text-blue-500 hover:underline"
                 >
                   LinkedIn

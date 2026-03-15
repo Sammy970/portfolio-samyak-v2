@@ -1,0 +1,188 @@
+---
+title: "I Built a Cursor IDE Extension to Track My AI Requests Without Leaving the Editor"
+publishedAt: "2026-03-15"
+author: "Sammy970"
+summary: "How I reverse-engineered Cursor's local SQLite database and internal API to build a status bar extension that shows remaining AI requests in real time."
+tags: ["cursor", "extension", "ai", "development"]
+icon: "https://cdn.flyonui.com/fy-assets/landing-page/logos/cursor.png"
+---
+
+I use Cursor every day. And every day, at some point, I'd open a browser, navigate to the Cursor dashboard, and check how many fast requests I had left for the month.
+
+It was a tiny thing. But it was annoying enough that I decided to fix it.
+
+The result: a Cursor IDE extension that shows your remaining AI requests directly in the status bar — no browser, no dashboard, no context switching.
+
+```
+⚡ 350 left
+```
+
+That's it. Always visible. Click to refresh. Turns red when you're running low.
+
+---
+
+## The Obvious Approach Doesn't Work
+
+My first instinct was to call the Cursor usage API that the dashboard uses:
+
+```
+GET https://cursor.com/api/usage?user=<USER_ID>
+```
+
+Simple enough. Except this endpoint requires the browser session cookie `WorkosCursorSessionToken` — the one that gets set when you log into cursor.com in Chrome or Safari.
+
+A VS Code extension runs in Node.js. It has no access to browser cookies. So even if I found the right endpoint, I had no way to authenticate against it from inside the IDE.
+
+Back to square one.
+
+---
+
+## Digging Into How Cursor Stores Auth
+
+Cursor is built on Electron — which means it's essentially a Chromium browser wrapped around a Node.js runtime. Like VS Code, it stores its state in a local SQLite database:
+
+```
+~/Library/Application Support/Cursor/User/globalStorage/state.vscdb  (macOS)
+%APPDATA%\Cursor\User\globalStorage\state.vscdb                       (Windows)
+~/.config/Cursor/User/globalStorage/state.vscdb                       (Linux)
+```
+
+I opened this database and queried the `ItemTable` for anything auth-related:
+
+```sql
+SELECT key, value FROM ItemTable WHERE key LIKE 'cursorAuth%';
+```
+
+The results:
+
+| Key | Value |
+| --- | ----- |
+| `cursorAuth/accessToken` | `eyJhbGciOiJIUzI1NiIs...` |
+| `cursorAuth/refreshToken` | `eyJhbGciOiJIUzI1NiIs...` |
+| `cursorAuth/cachedEmail` | `you@example.com` |
+| `cursorAuth/stripeMembershipType` | `pro` |
+
+The `accessToken` is a JWT that the Cursor app itself uses to talk to its own backend. This was the key.
+
+---
+
+## Finding the Right API Endpoint
+
+With the token in hand, I started probing Cursor's backend at `api2.cursor.sh`. After a few attempts:
+
+```
+GET https://api2.cursor.sh/auth/usage
+Authorization: Bearer <accessToken>
+```
+
+Response:
+
+```json
+{
+  "gpt-4": {
+    "numRequests": 150,
+    "maxRequestUsage": 500
+  },
+  "startOfMonth": "2026-03-01T00:00:00.000Z"
+}
+```
+
+No user ID parameter needed. No browser cookie. Just the Bearer token from the local database — and it works perfectly.
+
+---
+
+## Building the Extension
+
+The extension has four files:
+
+```
+src/
+├── auth.ts       — reads the token from state.vscdb using sql.js
+├── api.ts        — calls api2.cursor.sh/auth/usage
+├── statusBar.ts  — renders the status bar item
+└── extension.ts  — activation, refresh command, auto-refresh timer
+```
+
+### Reading the Token
+
+I used [sql.js](https://github.com/sql-js/sql.js) — a pure WebAssembly build of SQLite — to read the database. No native compilation, works on all platforms.
+
+```typescript
+const initSqlJs = require("sql.js");
+const SQL = await initSqlJs();
+
+const fileBuffer = fs.readFileSync(dbPath);
+const db = new SQL.Database(fileBuffer);
+
+const result = db.exec(
+  `SELECT value FROM ItemTable WHERE key = 'cursorAuth/accessToken' LIMIT 1`
+);
+db.close();
+
+const token = result[0].values[0][0];
+```
+
+The database is opened read-only and closed immediately. The token is never stored anywhere by the extension.
+
+### Calling the API
+
+```typescript
+const response = await httpsGet("https://api2.cursor.sh/auth/usage", token);
+const { "gpt-4": model, startOfMonth } = JSON.parse(response);
+
+const remaining = model.maxRequestUsage - model.numRequests;
+```
+
+### Showing It in the Status Bar
+
+```typescript
+this.item.text = `$(zap) ${remaining} left`;
+
+if (remaining < 50) {
+  this.item.backgroundColor = new vscode.ThemeColor(
+    "statusBarItem.warningBackground"
+  );
+}
+```
+
+The status bar item auto-refreshes every 5 minutes and can be clicked to refresh manually. Hovering shows the full breakdown — requests used, limit, and the period start date.
+
+---
+
+## Security Considerations
+
+Before publishing, I audited the extension for anything that could leak user data:
+
+- The access token is read fresh on each refresh and **never written to disk** by the extension
+- It is sent **only** to `api2.cursor.sh` over HTTPS — no third-party servers, no analytics
+- API error messages expose **only the HTTP status code**, never the response body
+- File-not-found errors show a generic message — **never the local filesystem path**
+- The database is opened in **read-only mode** and closed immediately after use
+
+---
+
+## Installing It
+
+The extension is published on the Open VSX registry (which Cursor uses):
+
+1. Open the Extensions panel in Cursor (`Cmd+Shift+X`)
+2. Search for **Cursor Usage**
+3. Install the one by `Sammy970`
+
+Or install it directly from the command line:
+
+```bash
+cursor --install-extension Sammy970.cursor-usage
+```
+
+The source code is on GitHub: [github.com/Sammy970/cursor-usage-extension](https://github.com/Sammy970/cursor-usage-extension)
+
+---
+
+## What I Learned
+
+The most interesting part of this project wasn't the extension itself — it was the investigation phase. Finding the right API by probing endpoints, reading auth tokens from a local SQLite database, understanding how Cursor's Electron shell manages state — none of this was documented anywhere. It was all reverse engineering.
+
+If you're building tools around Cursor or VS Code, the `state.vscdb` file is a goldmine. It stores everything from auth tokens to your recently opened folders to per-extension state. Worth poking around if you're curious.
+
+The extension took a few hours to build and is ~200 lines of TypeScript. Sometimes the most satisfying tools are the small ones that scratch a very specific itch.

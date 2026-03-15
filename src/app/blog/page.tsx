@@ -3,6 +3,8 @@ import { getBlogPosts } from "@/data/blog";
 import Image from "next/image";
 import Link from "next/link";
 
+export const dynamic = "force-dynamic";
+
 export const metadata = {
   title: "Blog",
   description: "My thoughts on software development, life, and more.",

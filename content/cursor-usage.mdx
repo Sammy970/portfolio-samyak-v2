@@ -1,0 +1,292 @@
+---
+title: "I Built a Cursor IDE Extension to Check My AI Requests Without Leaving the Editor"
+date: "2026-04-01"
+publishedAt: "2026-04-01"
+author: "Sammy970"
+tags: ["Cursor", "Cursor IDE Extension", "TypeScript", "Developer Tools", "Reverse Engineering"]
+icon: https://github.com/Sammy970/cursor-usage-extension/blob/main/icon.png?raw=true
+---
+
+<div style="text-align: left; margin-bottom: 2em; display: flex; align-items: center;">
+  <img src="https://jainsamyak.vercel.app/me.png" alt="Samyak Jain" style="height: 40px; width: 40px; border-radius: 50%; margin-bottom: 10px; margin-right: 10px;" />
+  <h3>Samyak Jain</h3>
+</div>
+
+## Introduction
+
+I live in Cursor most days. For months I kept doing the same dance: Cmd+Tab to a browser, open settings or the dashboard, squint at how many fast requests were left, then tab back. It’s not a crisis. It’s just… a lot of context switching for a number I wanted maybe ten times a day.
+
+So I built a tiny extension: remaining fast requests in the status bar. Click to refresh. It goes red when you’re low. That’s the whole product surface.
+
+![Cursor Usage Monitor](https://github.com/Sammy970/cursor-usage-extension/blob/main/media/cursor-usage-monitor.png?raw=true)
+
+Below is how it actually works — where the token lives, which API answered, and how I read the DB without doing something dumb as `state.vscdb` keeps growing (chats and global state pile into that file over time).
+
+It’s on Open VSX: [open-vsx.org/extension/Sammy970/cursor-usage](https://open-vsx.org/extension/Sammy970/cursor-usage)
+
+<div style="margin-top: 2em;"></div>
+
+<details>
+  <summary className="text-xl font-semibold cursor-pointer">
+    Table of Contents
+  </summary>
+  <ul className="list-disc">
+    <li>
+      <a href="#the-problem">The Problem</a>
+    </li>
+    <li>
+      <a href="#why-the-obvious-approach-doesnt-work">Why the Obvious Approach Doesn't Work</a>
+    </li>
+    <li>
+      <a href="#digging-into-how-cursor-stores-auth">Digging Into How Cursor Stores Auth</a>
+    </li>
+    <li>
+      <a href="#finding-the-right-api-endpoint">Finding the Right API Endpoint</a>
+    </li>
+    <li>
+      <a href="#building-the-extension">Building the Extension</a>
+      <ul>
+        <li><a href="#reading-the-token">Reading the Token</a></li>
+        <li><a href="#calling-the-api">Calling the API</a></li>
+        <li><a href="#the-status-bar-item">The Status Bar Item</a></li>
+        <li><a href="#wiring-it-all-together">Wiring it all Together</a></li>
+      </ul>
+    </li>
+    <li>
+      <a href="#security-considerations">Security Considerations</a>
+    </li>
+    <li>
+      <a href="#how-to-install-it">How to Install It</a>
+    </li>
+    <li>
+      <a href="#conclusion">Conclusion</a>
+    </li>
+  </ul>
+</details>
+
+<h2 id="the-problem">The Problem</h2>
+
+On Pro you get something like 500 fast requests a month for the good models. After that you’re on slow mode — still usable, but you feel it.
+
+Cursor doesn’t surface that counter in the editor. Officially you check the web. Fine for monthly accounting; annoying when you’re mid-flow and just want a gut check.
+
+I wanted a number I could see without leaving the window.
+
+<h2 id="why-the-obvious-approach-doesnt-work">Why the Obvious Approach Doesn't Work</h2>
+
+First thing I tried was the obvious dashboard-style URL:
+
+```
+GET https://cursor.com/api/usage?user=<USER_ID>
+```
+
+That route wants the browser cookie `WorkosCursorSessionToken`. Extensions run in Node inside the IDE — not in a tab — so there’s no cookie jar to pull from. I could see the network calls in DevTools; I couldn’t replay them honestly from extension code.
+
+`fetch(..., { credentials: "include" })` doesn’t magically attach your Chrome session. You get redirects and 401s. Dead end.
+
+<h2 id="digging-into-how-cursor-stores-auth">Digging Into How Cursor Stores Auth</h2>
+
+Cursor is Electron. Like VS Code, a pile of stuff lives in a SQLite file:
+
+| Platform | Path |
+| -------- | ---- |
+| macOS | `~/Library/Application Support/Cursor/User/globalStorage/state.vscdb` |
+| Windows | `%APPDATA%\Cursor\User\globalStorage\state.vscdb` |
+| Linux | `~/.config/Cursor/User/globalStorage/state.vscdb` |
+
+I poked around:
+
+```sql
+SELECT key, value FROM ItemTable WHERE key LIKE 'cursorAuth%';
+```
+
+Useful rows included:
+
+| Key | Value |
+| --- | ----- |
+| `cursorAuth/accessToken` | `eyJhbGciOiJIUzI1NiIs...` (JWT) |
+| `cursorAuth/refreshToken` | `eyJhbGciOiJIUzI1NiIs...` (JWT) |
+| `cursorAuth/cachedEmail` | `you@example.com` |
+| `cursorAuth/stripeMembershipType` | `pro` |
+
+Decode the access token and the payload points at real API hosts — in my case `aud` was `https://api2.cursor.sh`. That’s the backend audience, not the marketing site. Worth following.
+
+<h2 id="finding-the-right-api-endpoint">Finding the Right API Endpoint</h2>
+
+With a bearer token, probing `api2.cursor.sh` eventually landed here:
+
+```
+GET https://api2.cursor.sh/auth/usage
+Authorization: Bearer <accessToken>
+```
+
+Example payload:
+
+```json
+{
+  "gpt-4": {
+    "numRequests": 150,
+    "numRequestsTotal": 150,
+    "numTokens": 132713206,
+    "maxRequestUsage": 500,
+    "maxTokenUsage": null
+  },
+  "startOfMonth": "2026-03-01T00:00:00.000Z"
+}
+```
+
+No user id in the query string. Remaining fast requests ≈ `maxRequestUsage - numRequests` for the `gpt-4` bucket (that’s what the UI calls “fast” in practice).
+
+<h2 id="building-the-extension">Building the Extension</h2>
+
+Still four TypeScript files — small on purpose:
+
+```
+src/
+├── auth.ts       — token from state.vscdb (see below)
+├── api.ts        — GET api2.cursor.sh/auth/usage
+├── statusBar.ts  — status item + tooltip
+└── extension.ts  — activate, refresh command, 5 min timer
+```
+
+<h3 id="reading-the-token">Reading the Token</h3>
+
+This part changed after v1 shipped. Two things were true:
+
+1. **`state.vscdb` doesn’t stay tiny.** Global storage grows. A friend hit a multi‑gigabyte file; Node’s single-shot `readFile` path caps around 2 GiB and blew up. So we don’t rely on “read the whole file in one syscall” anymore for the fallback path.
+
+2. **We only need one string.** Loading the entire DB into WASM just to read one cell is wasteful when the runtime can open SQLite by path.
+
+**Preferred path:** Node’s built‑in `node:sqlite` (`DatabaseSync`), when the editor’s Node/Electron actually exposes it. Open `state.vscdb` read‑only on disk, run `SELECT value FROM ItemTable WHERE key = ?`, done. SQLite pulls pages as needed — you’re not malloc’ing the whole file in JS for one JWT.
+
+**Fallback:** [sql.js](https://github.com/sql-js/sql.js) (SQLite compiled to WASM). It only accepts an in‑memory copy of the DB, so we still read the file into a buffer — but we read it in **chunks** so we stay under Node’s limits. Yes, that means heavy RAM use on huge DBs; that’s why the native sqlite path is first.
+
+Rough shape of the real code:
+
+```typescript
+// 1) Try node:sqlite — file-backed, read-only
+const { DatabaseSync } = await import("node:sqlite");
+const db = new DatabaseSync(dbPath, { readOnly: true });
+const row = db
+  .prepare("SELECT value FROM ItemTable WHERE key = ? LIMIT 1")
+  .get("cursorAuth/accessToken") as { value: string } | undefined;
+db.close();
+
+// 2) If import or open fails → sql.js + chunked read into Buffer, then SQL.Database(buffer)
+```
+
+I didn’t switch to `better-sqlite3` — native addons have to match Electron’s ABI, and everyone’s on a slightly different Cursor build. A built-in module plus a pure-JS fallback keeps installs boring.
+
+The extension never persists the token; it’s read, used for one HTTPS request, then dropped.
+
+<h3 id="calling-the-api">Calling the API</h3>
+
+No axios — just Node’s `https` module:
+
+```typescript
+export async function fetchUsage(token: string): Promise<UsageData> {
+  const body = await httpsGet("https://api2.cursor.sh/auth/usage", token);
+
+  const json = JSON.parse(body) as {
+    "gpt-4"?: { numRequests?: number; maxRequestUsage?: number };
+    startOfMonth?: string;
+  };
+
+  const model = json["gpt-4"] ?? {};
+  const fastUsed = model.numRequests ?? 0;
+  const fastLimit = model.maxRequestUsage ?? 500;
+
+  return {
+    fastRequestsUsed: fastUsed,
+    fastRequestsLimit: fastLimit,
+    fastRequestsRemaining: Math.max(0, fastLimit - fastUsed),
+    startOfMonth: json.startOfMonth ?? "",
+  };
+}
+```
+
+<h3 id="the-status-bar-item">The Status Bar Item</h3>
+
+Bottom right: lightning icon, “N left”, warning background under 50. Tooltip has the breakdown.
+
+```typescript
+setUsage(data: UsageData, updatedAt: Date): void {
+  const remaining = data.fastRequestsRemaining;
+
+  this.item.text = `$(zap) ${remaining} left`;
+
+  if (remaining < 50) {
+    this.item.backgroundColor = new vscode.ThemeColor(
+      "statusBarItem.warningBackground"
+    );
+  }
+
+  this.item.tooltip = new vscode.MarkdownString([
+    `**Cursor AI Usage**`,
+    ``,
+    `⚡ Fast requests used: ${data.fastRequestsUsed} / ${data.fastRequestsLimit}`,
+    `✅ Remaining: **${remaining}**`,
+    ``,
+    `_Since ${new Date(data.startOfMonth).toLocaleDateString()}_`,
+    `_Last updated: ${updatedAt.toLocaleTimeString()}_`,
+    ``,
+    `_Click to refresh_`,
+  ].join("\n"));
+}
+```
+
+<h3 id="wiring-it-all-together">Wiring it all Together</h3>
+
+`extension.ts` registers the refresh command, runs an initial fetch, and sets a 5‑minute interval:
+
+```typescript
+export function activate(context: vscode.ExtensionContext): void {
+  statusBarItem = new UsageStatusBarItem();
+
+  const command = vscode.commands.registerCommand("cursorUsage.refresh", () => {
+    refresh();
+  });
+
+  context.subscriptions.push(command);
+
+  refresh();
+
+  refreshTimer = setInterval(() => refresh(), 5 * 60 * 1000);
+}
+```
+
+<h2 id="security-considerations">Security Considerations</h2>
+
+Before publishing I went through the boring checklist:
+
+**Token** — Read from disk per refresh, never written by the extension, never logged. On API errors I don’t dump response bodies (they could theoretically echo weird stuff).
+
+**Network** — Only `https://api2.cursor.sh/auth/usage`. No analytics domain, no random POST. You can grep the repo.
+
+**Errors** — Status bar text stays generic so we don’t leak home-directory paths in tooltips.
+
+**DB** — Read path only (`readOnly` when using `node:sqlite`; sql.js path is read-only file access, no writes back into Cursor’s DB).
+
+<h2 id="how-to-install-it">How to Install It</h2>
+
+Cursor pulls from Open VSX for the Extensions panel.
+
+1. `Cmd+Shift+X` (or your platform’s shortcut)
+2. Search **Cursor Usage**
+3. Install **Sammy970**
+
+CLI:
+
+```
+cursor --install-extension Sammy970.cursor-usage
+```
+
+Source: [github.com/Sammy970/cursor-usage-extension](https://github.com/Sammy970/cursor-usage-extension)
+
+<h2 id="conclusion">Conclusion</h2>
+
+The fun bit was the scavenger hunt: where Electron stashes tokens, which `aud` the JWT expects, which hostname actually answers `GET /auth/usage`. The extension itself is a thin wrapper.
+
+If you’re poking at Cursor or VS Code tooling, `state.vscdb` is a useful artifact — just remember it’s not a static file; it’ll swell as you use the product. Designing around “one row read” instead of “slurp entire file” was worth the extra branch in `auth.ts`.
+
+MIT licensed. If it saves you a tab, cool — star or PRs welcome.

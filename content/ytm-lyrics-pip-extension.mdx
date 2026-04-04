@@ -1,0 +1,167 @@
+---
+title: "I Built a YouTube Music Lyrics Extension So I Could Keep Lyrics Floating While I Work"
+date: "2026-04-04"
+publishedAt: "2026-04-04"
+author: "Sammy970"
+tags: ["YouTube Music", "Chrome Extension", "JavaScript", "Manifest V3", "Developer Tools"]
+icon: https://raw.githubusercontent.com/Sammy970/ytm-lyrics/main/icons/icon128.png
+---
+
+<div style="text-align: left; margin-bottom: 2em; display: flex; align-items: center;">
+  <img src="https://jainsamyak.vercel.app/me.png" alt="Samyak Jain" style="height: 40px; width: 40px; border-radius: 50%; margin-bottom: 10px; margin-right: 10px;" />
+  <h3>Samyak Jain</h3>
+</div>
+
+## introduction
+
+I usually keep YouTube Music running while coding. The annoying part was always the same: if I wanted lyrics, I had to switch context. Open another tab, search lyrics, come back, repeat for the next song.
+
+So I built a small Chrome extension that keeps lyrics in a floating panel while music is playing. It can stay visible across tabs, it auto-syncs to the current line when synced lyrics exist, and I can click a line to jump to that part of the song.
+
+No extra app. No manual searching every track.
+
+I also shared this launch on X:
+[https://x.com/Sammy_970/status/2040385184177279113](https://x.com/Sammy_970/status/2040385184177279113)
+
+<blockquote class="twitter-tweet" data-theme="dark" data-dnt="true" align="center"><p lang="en" dir="ltr">yt music&#39;s phone app has awesome synced lyrics, but the desktop site is just a static text dump.<br><br>since I like to sing along while working, I built an open-source extension that brings floating, synced lyrics to any tab.<br><br>(demo + links below 👇)<br><br>1/2 <a href="https://t.co/Yqod6O0VV4">pic.twitter.com/Yqod6O0VV4</a></p>&mdash; Samyak Jain (@Sammy_970) <a href="https://twitter.com/Sammy_970/status/2040385184177279113?ref_src=twsrc%5Etfw">April 4, 2026</a></blockquote>
+<script async src="https://platform.twitter.com/widgets.js" charset="utf-8"></script>
+
+<details>
+  <summary className="text-xl font-semibold cursor-pointer">
+    Table of contents
+  </summary>
+  <ul className="list-disc">
+    <li><a href="#the-problem">The problem</a></li>
+    <li><a href="#what-i-wanted-from-the-extension">What I wanted from the extension</a></li>
+    <li><a href="#how-it-works">How it works</a></li>
+    <li><a href="#project-structure">Project structure</a></li>
+    <li><a href="#implementation-highlights">Implementation highlights</a></li>
+    <li><a href="#challenges-and-decisions">Challenges and decisions</a></li>
+    <li><a href="#testing">Testing</a></li>
+    <li><a href="#how-to-install-it">How to install it</a></li>
+    <li><a href="#whats-next">What is next</a></li>
+  </ul>
+</details>
+
+<h2 id="the-problem">The problem</h2>
+
+Lyrics are easy to find, but the workflow is bad when you are in deep work. I wanted to avoid this loop:
+
+1. Leave current tab
+2. Search lyrics manually
+3. Come back to YouTube Music
+4. Repeat on next song
+
+The core issue was not missing data. The issue was friction.
+
+<h2 id="what-i-wanted-from-the-extension">What I wanted from the extension</h2>
+
+Before writing code, I kept requirements simple:
+
+- Detect the current track from YouTube Music reliably
+- Fetch lyrics automatically for that track
+- Support synced lyrics when timestamps are available
+- Keep lyrics visible while I browse other tabs
+- Let me open lyrics in a separate floating window when needed
+- Allow click-to-seek on a lyric line
+- Cache responses so repeated tracks feel instant
+
+If it did these well, that was enough for v1.
+
+<h2 id="how-it-works">How it works</h2>
+
+At a high level:
+
+1. A content script watches YouTube Music for track changes and playback state.
+2. The extension extracts artist/title metadata.
+3. It queries LRCLIB for lyrics.
+4. If synced lyrics are available, timestamps are parsed and rendered.
+5. The overlay and popup stay updated as the current playback time changes.
+
+This made the extension feel automatic. Start a song and lyrics follow.
+
+<h2 id="project-structure">Project structure</h2>
+
+Main files in the project:
+
+- src/ytm-content.js: hooks into YouTube Music page state
+- src/track-extractor.js: normalizes song metadata for search
+- src/lyrics-fetcher.js: queries LRCLIB and handles caching
+- src/lyrics-window.js: manages floating lyrics window behavior
+- src/popup.js + src/popup.html: extension popup UI
+- src/background.js: message coordination and extension lifecycle
+- src/translator.js: translation-related helper logic
+
+I stayed with plain JavaScript and Manifest V3 to keep it lightweight and easy to inspect.
+
+<h2 id="implementation-highlights">Implementation highlights</h2>
+
+### 1) track extraction that survives real-world titles
+
+YouTube Music track labels can be noisy. Live versions, remasters, featured artists, and extra delimiters can reduce match quality.
+
+I added normalization in the extraction flow so the lyrics lookup has a cleaner query. That increased hit rate without adding complexity to the UI.
+
+### 2) synced lyric parsing and active-line highlight
+
+When LRCLIB returns timestamped lines, the extension maps current playback time to the closest line and highlights it.
+
+This is the part that makes the overlay feel alive instead of static text.
+
+### 3) click-to-seek from the lyrics panel
+
+Each lyric row can seek playback when clicked. If you miss a line, you can jump directly from the overlay rather than touching the YouTube Music scrubber.
+
+### 4) floating overlay plus popup mode
+
+Some users want lyrics over their current page. Others want a separate mini-window on a second monitor.
+
+The extension supports both, and state is shared so switching mode does not feel like restarting the feature.
+
+### 5) cache-first behavior
+
+Lyrics responses are cached for tracks already requested. This avoids repeated network fetches and improves responsiveness on replay.
+
+<h2 id="challenges-and-decisions">Challenges and decisions</h2>
+
+### YouTube Music UI is not a stable API
+
+Extensions rely on page structure and runtime state that can change over time. I kept extraction logic separated from rendering logic so fixes remain focused when selectors or data sources shift.
+
+### matched lyrics are probabilistic
+
+Even with normalization, some songs return no result or imperfect results. The extension handles this with clear fallback messaging instead of silent failure.
+
+### UX had to stay minimal
+
+It is tempting to add many controls early. I kept v1 focused on readability, positioning, and direct interaction (seek, collapse, close).
+
+<h2 id="how-to-install-it">How to install it</h2>
+
+This extension is currently installed manually:
+
+1. Download the release ZIP from GitHub Releases
+2. Extract to a local folder
+3. Open Chrome extensions page (chrome://extensions)
+4. Enable Developer mode
+5. Click Load unpacked and select the extracted folder
+
+Repository:
+[https://github.com/Sammy970/ytm-lyrics](https://github.com/Sammy970/ytm-lyrics)
+
+<h2 id="whats-next">What is next</h2>
+
+Things I want to improve in upcoming versions:
+
+- Better matching heuristics for difficult track titles
+- More robust handling for songs without synced data
+- Improved overlay theming and typography options
+- Optional keyboard shortcuts for quick panel actions
+
+If you try it and notice a mismatch or bug, please open an issue in the repo with the song details. That feedback is the fastest way to improve coverage.
+
+## closing
+
+This was a fun project because the value is simple and immediate: less context switching while listening to music.
+
+Tiny tools that remove repeated friction are usually the ones I keep using the longest. This one made my own daily workflow better, so I shipped it.
